@@ -45,8 +45,8 @@ AlignOperands: true
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: true
 
-# Maximum line length
-ColumnLimit: 100
+# # Maximum line length
+# ColumnLimit: 100
 
 # Others
 SortUsingDeclarations: true

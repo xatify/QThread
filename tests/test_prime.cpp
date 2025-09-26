@@ -20,7 +20,7 @@ bool is_prime(unsigned int n) {
 int main() {
 	ThreadPool pool(4);
 
-	std::vector<unsigned int>	   numbers = {2, 3, 4, 5, 17, 18, 19, 20, 97, 99};
+	std::vector<unsigned int> numbers = {2, 3, 4, 5, 17, 18, 19, 20, 97, 99};
 	std::vector<std::future<bool>> futures;
 
 	// Submit tasks
@@ -35,7 +35,8 @@ int main() {
 	}
 
 	// Expected results
-	std::vector<bool> expected = {true, true, false, true, true, false, true, false, true, false};
+	std::vector<bool> expected = {true,	 true, false, true, true,
+								  false, true, false, true, false};
 
 	// Validate
 	assert(results == expected);

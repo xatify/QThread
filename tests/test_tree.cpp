@@ -37,7 +37,8 @@ int main() {
 	pool.wait_for_completion();
 
 	int expected_nodes = (1 << (depth + 1)) - 1; // 2^(depth+1) - 1
-	std::cout << "Created " << *counter << " nodes, expected " << expected_nodes << "\n";
+	std::cout << "Created " << *counter << " nodes, expected " << expected_nodes
+			  << "\n";
 	assert(*counter == expected_nodes);
 
 	std::cout << "Tree test passed!" << std::endl;

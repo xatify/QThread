@@ -93,8 +93,8 @@ namespace qthread {
     	* @return std::future<R> where R is the return type of f
     	*/
 		template <typename F, typename... Args>
-		auto submit(F&& f,
-					Args&&... args) -> std::future<typename std::invoke_result<F, Args...>::type>;
+		auto submit(F&& f, Args&&... args)
+			-> std::future<typename std::invoke_result<F, Args...>::type>;
 
 		/**
     	* @brief Gracefully stop the pool.
@@ -145,7 +145,8 @@ namespace qthread {
 		return queue_.empty();
 	}
 
-	inline ThreadPool::ThreadPool(size_t numThreads) : stopFlag_(false), activeTasks_(0) {
+	inline ThreadPool::ThreadPool(size_t numThreads)
+		: stopFlag_(false), activeTasks_(0) {
 		if (numThreads == 0) {
 			numThreads = std::thread::hardware_concurrency();
 			if (numThreads == 0)
