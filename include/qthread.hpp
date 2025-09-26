@@ -150,7 +150,7 @@ namespace qthread {
 		if (numThreads == 0) {
 			numThreads = std::thread::hardware_concurrency();
 			if (numThreads == 0)
-				numThreads == 2;
+				numThreads = 2;
 		}
 
 		for (size_t i = 0; i < numThreads; i++) {
