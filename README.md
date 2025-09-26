@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)  [![C++](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)  [![CI](https://github.com/xatify/QThread/actions/workflows/ci.yaml/badge.svg)](https://github.com/xatify/QThread/actions/workflows/ci.yaml)
 
-**Header-only C++ thread pool with a safe task queue and future-based results. **
+**Header-only C++ thread pool with a safe task queue and future-based results.**
 
 Qthread combines a **queue** + **thread pool** in a simple, portable, single-header library.
 It makes parallel execution easy: submit lambdas, functors, or functions, and retrieve results via `std::future`.
