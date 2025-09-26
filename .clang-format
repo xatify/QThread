@@ -1,0 +1,59 @@
+# .clang-format
+
+# Base style
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: true
+
+# Braces and spacing
+BreakBeforeBraces: Attach
+AllowShortIfStatementsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortLoopsOnASingleLine: false
+
+# Include handling
+IncludeBlocks: Preserve
+IncludeCategories:
+  - Regex:           '^"minidb/.*'
+    Priority:        1
+    SortPriority:    0
+    CaseSensitive:   true
+  - Regex:           '^<.*'
+    Priority:        2
+    SortPriority:    1
+    CaseSensitive:   false
+SortIncludes: true
+
+# Pointer alignment
+PointerAlignment: Left  # `type* var` instead of `type *var`
+
+# Namespace formatting
+NamespaceIndentation: All
+
+# Comment formatting
+ReflowComments: false
+
+# Constructor initializer formatting
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+# Aligning and spacing
+AlignAfterOpenBracket: Align
+AlignOperands: true
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+
+# Maximum line length
+ColumnLimit: 100
+
+# Others
+SortUsingDeclarations: true
+SpaceBeforeParens: ControlStatements
+Cpp11BracedListStyle: true
+
+
+
+InsertNewlineAtEOF: true
+KeepEmptyLinesAtEOF: true
