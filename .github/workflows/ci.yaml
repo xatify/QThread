@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup C++ environment
+        uses: aminya/setup-cpp@v1
+        with:
+          compiler: ${{ matrix.compiler }}
+          cmake: true
+          ninja: true
+          clangformat: 18
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Check formatting
+        run: cmake --build build --target format-check
+      
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
