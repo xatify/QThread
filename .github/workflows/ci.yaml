@@ -23,7 +23,7 @@ jobs:
           compiler: ${{ matrix.compiler }}
           cmake: true
           ninja: true
-          clangformat: true
+          clangformat: 18
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
