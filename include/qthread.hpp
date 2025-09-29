@@ -15,15 +15,64 @@
 namespace qthread {
 
 	/**
+ 	* @brief FIFO scheduling policy.
+ 	*
+ 	* Tasks are executed in the order they are submitted (First-In-First-Out).
+ 	* This is the default policy for the thread pool.
+ 	*
+ 	* @tparam T The type of element stored in the queue.
+ 	*/
+	struct FiFoPolicy {
+		template <typename T> using Container = std::queue<T>;
+	};
+
+	/**
+	* @brief Priority scheduling policy.
+	*
+	* Tasks are scheduled according to a priority value.
+	* Lower numeric values represent higher priority
+	* (e.g., High = 0 executes before Normal = 1).
+	*
+	* @tparam T The type of element stored in the priority queue.
+	*/
+	struct PriorityPolicy {
+		/**
+    	* @brief Priority levels available for tasks.
+    	*/
+		enum class Priority { High = 0, Normal = 1, Low = 2 };
+
+		template <typename T>
+		using Container = std::priority_queue<T, std::vector<T>>;
+		/**
+		* @brief Wrapper for tasks when using a priority queue.
+		*
+		* Associates a callable task with a priority level so that
+		* the thread pool can order tasks accordingly.
+		*/
+		struct TaskWrapper {
+			std::function<void()>	 func;
+			PriorityPolicy::Priority priority;
+
+			bool operator<(const TaskWrapper& other) const {
+				return static_cast<int>(priority) >
+					   static_cast<int>(other.priority);
+			}
+		};
+	};
+
+	using Priority = PriorityPolicy::Priority;
+	/**
 	* @class ConcurrentQueue
 	* @brief A thread-safe, blocking queue for inter-thread communication.
 	*
 	* Provides synchronized push/pop operations, allowing multiple producers
-	* and consumers to safely exchange tasks or data.
+	* and consumers to safely exchange tasks or data. the underlying container
+	* type is determnined by the scheduling Policy
 	*
-	* @tparam T Type of element stored in the queue.
+	* @tparam T			Type of element stored in the queue.
+	* @tparam Policy	Scheduling policy for ordering elements (default: FiFo)
 	*/
-	template <typename T> class ConcurrentQueue {
+	template <typename T, typename Policy = FiFoPolicy> class ConcurrentQueue {
 	  public:
 		ConcurrentQueue()  = default;
 		~ConcurrentQueue() = default;
@@ -38,6 +87,8 @@ namespace qthread {
     	* Thread-safe, notifies one waiting consumer.
     	*/
 		void push(T item);
+
+		inline void push(T item, PriorityPolicy::Priority prio);
 
 		/**
     	* @brief Pop an item from the queue (blocking).
@@ -56,9 +107,9 @@ namespace qthread {
 		bool empty() const;
 
 	  private:
-		mutable std::mutex		mtx_;
-		std::condition_variable cv_;
-		std::queue<T>			queue_;
+		mutable std::mutex					   mtx_;
+		std::condition_variable				   cv_;
+		typename Policy::template Container<T> queue_;
 	};
 
 	/**
@@ -67,8 +118,11 @@ namespace qthread {
  	*
  	* ThreadPool manages a set of worker threads that execute tasks
  	* submitted via submit(). Tasks can return results using std::future.
+	* The scheduling policy (FIFO or Priority) is controlled via the template parameter.
+	*
+	* @tparam Policy Scheduling policy (default: FiFoPolicy)
  	*/
-	class ThreadPool {
+	template <typename Policy = FiFoPolicy> class ThreadPool {
 	  public:
 		/**
     	* @brief Construct a thread pool.
@@ -90,10 +144,15 @@ namespace qthread {
     	* @tparam Args Argument types
     	* @param f Callable object
     	* @param args Arguments to pass to f
+		* @param priority Optional task priority (used only is Policy == PriorityPolicy)
     	* @return std::future<R> where R is the return type of f
     	*/
 		template <typename F, typename... Args>
 		auto submit(F&& f, Args&&... args)
+			-> std::future<typename std::invoke_result<F, Args...>::type>;
+
+		template <typename F, typename... Args>
+		auto submit(F&& f, Args&&... args, PriorityPolicy::Priority)
 			-> std::future<typename std::invoke_result<F, Args...>::type>;
 
 		/**
@@ -114,13 +173,53 @@ namespace qthread {
 		// Worker thread loop
 		void worker_loop();
 
-		std::vector<std::thread>			   workers_;
-		ConcurrentQueue<std::function<void()>> taskQueue_;
-		std::atomic<bool>					   stopFlag_;
-		std::atomic<size_t>					   activeTasks_;
+		using TaskType =
+			std::conditional_t<std::is_same_v<Policy, PriorityPolicy>,
+							   typename PriorityPolicy::TaskWrapper,
+							   std::function<void()>>;
+
+		std::vector<std::thread>		  workers_;
+		ConcurrentQueue<TaskType, Policy> taskQueue_;
+		std::atomic<bool>				  stopFlag_;
+		std::atomic<size_t>				  activeTasks_;
 	};
 
-	template <typename T> inline void ConcurrentQueue<T>::push(T item) {
+	/**
+ 	* @brief Create a thread pool using FIFO (first-in, first-out) scheduling.
+ 	*
+ 	* Tasks are executed in the order they are submitted.
+ 	*
+ 	* @param n Number of worker threads (default: hardware concurrency or 2 if unknown).
+ 	* @return ThreadPool<FiFoPolicy> A FIFO thread pool instance.
+ 	*/
+	inline ThreadPool<FiFoPolicy> make_fifo_pool(size_t n = 0) {
+		return ThreadPool<FiFoPolicy>(n);
+	}
+
+	/**
+	* @brief Create a thread pool using priority-based scheduling.
+	*
+	* Tasks can be submitted with a PriorityPolicy::Priority value.
+	* Lower numeric values indicate higher priority.
+	*
+	* @param n Number of worker threads (default: hardware concurrency or 2 if unknown).
+	* @return ThreadPool<PriorityPolicy> A priority-based thread pool instance.
+	*/
+	inline ThreadPool<PriorityPolicy> make_priority_pool(size_t n = 0) {
+		return ThreadPool<PriorityPolicy>(n);
+	}
+
+	template <typename T, typename Policy>
+	inline void ConcurrentQueue<T, Policy>::push(T item, Priority prio) {
+		{
+			std::lock_guard<std::mutex> lock(mtx_);
+			queue_.push({std::move(item), prio});
+		}
+		cv_.notify_one();
+	}
+
+	template <typename T, typename Policy>
+	inline void ConcurrentQueue<T, Policy>::push(T item) {
 		{
 			std::lock_guard<std::mutex> lock(mtx_);
 			queue_.push(std::move(item));
@@ -128,24 +227,33 @@ namespace qthread {
 		cv_.notify_one();
 	}
 
-	template <typename T> inline std::optional<T> ConcurrentQueue<T>::pop() {
+	template <typename T, typename Policy>
+	inline std::optional<T> ConcurrentQueue<T, Policy>::pop() {
 		std::unique_lock<std::mutex> lock(mtx_);
 		cv_.wait(lock, [this] { return !queue_.empty(); });
 
 		if (queue_.empty())
 			return std::nullopt;
 
-		T item = std::move(queue_.front());
-		queue_.pop();
-		return (item);
+		if constexpr (std::is_same_v<Policy, PriorityPolicy>) {
+			auto wrapper = std::move(queue_.top());
+			queue_.pop();
+			return wrapper;
+		} else {
+			auto item = std::move(queue_.front());
+			queue_.pop();
+			return (item);
+		}
 	}
 
-	template <typename T> inline bool ConcurrentQueue<T>::empty() const {
+	template <typename T, typename Policy>
+	inline bool ConcurrentQueue<T, Policy>::empty() const {
 		std::lock_guard<std::mutex> lock(mtx_);
 		return queue_.empty();
 	}
 
-	inline ThreadPool::ThreadPool(size_t numThreads)
+	template <typename Policy>
+	inline ThreadPool<Policy>::ThreadPool(size_t numThreads)
 		: stopFlag_(false), activeTasks_(0) {
 		if (numThreads == 0) {
 			numThreads = std::thread::hardware_concurrency();
@@ -158,11 +266,11 @@ namespace qthread {
 		}
 	}
 
-	inline ThreadPool::~ThreadPool() {
+	template <typename Policy> inline ThreadPool<Policy>::~ThreadPool() {
 		shutdown();
 	}
 
-	inline void ThreadPool::worker_loop() {
+	template <typename Policy> inline void ThreadPool<Policy>::worker_loop() {
 		while (!stopFlag_) {
 			auto taskOpt = taskQueue_.pop();
 
@@ -173,33 +281,57 @@ namespace qthread {
 				continue;
 			}
 
-			auto task = std::move(taskOpt.value());
-			activeTasks_++;
-			try {
-				task();
-			} catch (...) {
-				// swallow excepts
+			if constexpr (std::is_same_v<Policy, PriorityPolicy>) {
+				auto wrapper = std::move(taskOpt.value());
+				activeTasks_++;
+				try {
+					wrapper.func();
+				} catch (...) {
+				}
+				activeTasks_--;
+			} else {
+				auto task = std::move(taskOpt.value());
+				activeTasks_++;
+				try {
+					task();
+				} catch (...) {
+				}
+				activeTasks_--;
 			}
-			activeTasks_--;
 		}
 	}
 
+	template <typename Policy>
 	template <typename F, typename... Args>
-	auto ThreadPool::submit(F&& f, Args&&... args)
+	auto ThreadPool<Policy>::submit(F&& f, Args&&... args)
 		-> std::future<typename std::invoke_result<F, Args...>::type> {
 		using return_type = typename std::invoke_result<F, Args...>::type;
 
 		auto taskPtr = std::make_shared<std::packaged_task<return_type()>>(
 			std::bind(std::forward<F>(f), std::forward<Args>(args)...));
 
-		std::future<return_type> result = taskPtr->get_future();
-
 		taskQueue_.push([taskPtr]() { (*taskPtr)(); });
-
+		std::future<return_type> result = taskPtr->get_future();
 		return (result);
 	}
 
-	inline void ThreadPool::shutdown() {
+	template <typename Policy>
+	template <typename F, typename... Args>
+	auto ThreadPool<Policy>::submit(F&& f, Args&&... args, Priority priority)
+		-> std::future<typename std::invoke_result<F, Args...>::type> {
+		using return_type = typename std::invoke_result<F, Args...>::type;
+
+		auto taskPtr = std::make_shared<std::packaged_task<return_type()>>(
+			std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+
+		auto wrapper = typename PriorityPolicy::TaskWrapper{
+			[taskPtr]() { (*taskPtr)(); }, priority};
+		taskQueue_.push(std::move(wrapper));
+		std::future<return_type> result = taskPtr->get_future();
+		return (result);
+	}
+
+	template <typename Policy> inline void ThreadPool<Policy>::shutdown() {
 		stopFlag_ = true;
 
 		// wake up all workers so they can exit
@@ -214,7 +346,8 @@ namespace qthread {
 		}
 	}
 
-	inline void ThreadPool::wait_for_completion() {
+	template <typename Policy>
+	inline void ThreadPool<Policy>::wait_for_completion() {
 		while (activeTasks_ > 0 || !taskQueue_.empty()) {
 			std::this_thread::sleep_for(std::chrono::microseconds(50));
 		}
