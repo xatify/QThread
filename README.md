@@ -22,12 +22,14 @@ It makes parallel execution easy: submit lambdas, functors, or functions, and re
 Just copy the `include/qthread.hpp` into your codebase.
 
 ## Usage Example
+
+### FIFO Thread Pool
 ```cpp
 #include "qthread.hpp"
 #include <iostream>
 
 int main() {
-    qthread::ThreadPool pool(4);
+    auto poo = qthread::make_fifo_pool(4);
 
     auto f1 = pool.submit([] { return 42; });
     auto f2 = pool.submit([](int a, int b) { return a + b; }, 10, 32);
@@ -37,6 +39,24 @@ int main() {
 
     pool.wait_for_completion();
 }
+```
+
+### Priority Thread Pool
+```cpp
+#include "qthread.hpp"
+#include <iostream>
+
+int main() {
+    auto pool = qthread::make_priority_pool(2);
+
+    pool.submit([] { std::cout << "Low priority\n"; }, qthread::Priority::Low);
+    pool.submit([] { std::cout << "High priority\n"; }, qthread::Priority::High);
+    pool.submit([] { std::cout << "Normal priority\n"; }, qthread::Priority::Normal);
+
+    pool.wait_for_completion();
+}
+
+
 ```
 
 ## Building and Testing
@@ -49,7 +69,7 @@ ctest --test-dir build --output-on-failure
 ## Roadmap
 Planned features for future versions:
 
-- [ ] Task priorities.
+- [x] Task priorities.
 - [ ] Task Cancellation
 - [ ] Dynamic thread pool resizing
 - [ ] Work-stealing scheduler
